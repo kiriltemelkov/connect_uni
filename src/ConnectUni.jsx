@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { getTheme, setTheme } from "./theme.js";
-import { forgetPush, startPush } from "./push.js";
+import { Capacitor } from "@capacitor/core";
+import { enablePush, forgetPush, pushState, startPush } from "./push.js";
 import {
   ArrowDown,
   ArrowLeft,
@@ -50,6 +51,11 @@ const STRINGS = {
     themeLight: "Light",
     themeDark: "Dark",
     refreshing: "Updating…",
+    pushTitle: "Push notifications",
+    pushOn: "On",
+    pushWait: "Setting up…",
+    pushAsk: "Turn on",
+    pushDenied: "Off. Allow them in iPhone Settings → Notifications → ConnectUni.",
     heroA: "Find ",
     heroB: "your people",
     heroC: " on campus.",
@@ -348,6 +354,11 @@ const STRINGS = {
     themeLight: "Hell",
     themeDark: "Dunkel",
     refreshing: "Wird aktualisiert…",
+    pushTitle: "Push-Mitteilungen",
+    pushOn: "An",
+    pushWait: "Wird eingerichtet…",
+    pushAsk: "Aktivieren",
+    pushDenied: "Aus. Erlaube sie in den iPhone-Einstellungen → Mitteilungen → ConnectUni.",
     heroA: "Finde ",
     heroB: "deine Leute",
     heroC: " auf dem Campus.",
@@ -2312,6 +2323,37 @@ function LangToggle({ className }) {
         </button>
       ))}
     </span>
+  );
+}
+
+// iOS app only: whether this phone gets push notifications, with the reason when it doesn't.
+function PushRow() {
+  const { t } = useI18n();
+  const [info, setInfo] = useState(pushState);
+  useEffect(() => {
+    const id = setInterval(() => setInfo(pushState()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  if (!Capacitor.isNativePlatform()) return null;
+  const ready = info.permission === "granted";
+  const denied = info.permission === "denied";
+  return (
+    <div className="mt-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className={cx(LABEL, "mb-0")}>{t("pushTitle")}</p>
+        {ready || denied ? (
+          <span className={cx("text-[13px] font-bold", ready && info.saved ? "text-emerald-600" : "text-zinc-500")}>
+            {ready ? (info.saved ? t("pushOn") : t("pushWait")) : t("pushDenied").split(".")[0]}
+          </span>
+        ) : (
+          <button type="button" onClick={() => enablePush().then(() => setInfo(pushState()))} className={cx(btn.soft, btn.sm)}>
+            {t("pushAsk")}
+          </button>
+        )}
+      </div>
+      {denied && <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">{t("pushDenied")}</p>}
+      {info.error && <p className="mt-1.5 break-words text-xs leading-relaxed text-rose-600">{info.error}</p>}
+    </div>
   );
 }
 
@@ -5481,6 +5523,7 @@ function MeSheet({ onClose }) {
           <p className={cx(LABEL, "mb-0")}>{t("theme")}</p>
           <ThemeToggle />
         </div>
+        <PushRow />
         {blockedList.length > 0 && (
           <>
             <p className={cx(LABEL, "mt-6")}>{t("blockedPeople")}</p>
