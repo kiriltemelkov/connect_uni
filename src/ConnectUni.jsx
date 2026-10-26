@@ -171,6 +171,8 @@ const STRINGS = {
     hostedBy: "by {name}",
     approvalNote: "host approves",
     going: "{n}/{max} going",
+    whoIsComing: "Who's coming",
+    hostTag: "Host",
     yourHangout: "Your hangout",
     join: "I'm in 🙌",
     joined: "You're in ✓",
@@ -474,6 +476,8 @@ const STRINGS = {
     hostedBy: "von {name}",
     approvalNote: "Host bestätigt",
     going: "{n}/{max} dabei",
+    whoIsComing: "Wer kommt",
+    hostTag: "Host",
     yourHangout: "Dein Hangout",
     join: "Bin dabei 🙌",
     joined: "Du bist dabei ✓",
@@ -2410,6 +2414,10 @@ function IconButton({ label, onClick, children, className, dark = false, disable
 
 function Sheet({ onClose, title, children, footer, wide = false, z = "z-50", bare = false }) {
   const { t } = useI18n();
+  const panel = useRef(null);
+  const scroller = useRef(null);
+  const backdrop = useRef(null);
+  useSwipeDown(panel, scroller, backdrop, onClose);
   const closeRef = useRef(onClose);
   useEffect(() => {
     closeRef.current = onClose;
@@ -2426,8 +2434,9 @@ function Sheet({ onClose, title, children, footer, wide = false, z = "z-50", bar
   }, []);
   return (
     <div role="dialog" aria-modal="true" aria-label={title} className={cx("fixed inset-0 flex items-end justify-center sm:items-center sm:p-6", z)}>
-      <div className="uc-fade absolute inset-0 bg-zinc-950/40 backdrop-blur-[2px]" onClick={onClose} />
+      <div ref={backdrop} className="uc-fade absolute inset-0 bg-zinc-950/40 backdrop-blur-[2px]" onClick={onClose} />
       <div
+        ref={panel}
         className={cx(
           "uc-sheet relative flex max-h-[94dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white shadow-2xl sm:rounded-[28px]",
           wide ? "sm:max-w-2xl" : "sm:max-w-md",
@@ -2442,6 +2451,7 @@ function Sheet({ onClose, title, children, footer, wide = false, z = "z-50", bar
           </header>
         )}
         <div
+          ref={scroller}
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
           style={footer ? undefined : { paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
         >
@@ -4263,10 +4273,52 @@ function HangoutDetailSheet({ id, onClose }) {
           <p><span className="font-bold text-zinc-900">{t("availableUntil")}:</span> <span className="text-zinc-600">{fmtDate(availableUntil, lang)} · {fmtTime(availableUntil, lang)}</span></p>
           <p className="flex items-start gap-2"><MapPin className="mt-0.5 size-4 shrink-0 text-zinc-500" /><span><span className="font-bold text-zinc-900">{t("meetAt")}:</span> <span className="text-zinc-600">{tx(h.place)}</span></span></p>
         </div>
-        <div className="mt-4 flex items-center gap-3">
-          <FacePile ids={h.attendees} max={6} />
-          <span className="text-sm font-semibold text-zinc-600">{t("going", { n: h.attendees.length, max: h.max })}</span>
-        </div>
+        <h4 className="mt-6 flex items-baseline justify-between text-[12px] font-bold uppercase tracking-[0.08em] text-zinc-400">
+          {t("whoIsComing")}
+          <span className="uc-tnum normal-case tracking-normal">{t("going", { n: h.attendees.length, max: h.max })}</span>
+        </h4>
+        {/* Tap someone for their profile; people you're connected with can be messaged right away. */}
+        <ul className="mt-2 flex flex-col gap-1">
+          {h.attendees.map((pid) => {
+            const p = app.person(pid);
+            const isMe = pid === ME;
+            return (
+              <li key={pid} className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isMe}
+                  onClick={() => {
+                    onClose();
+                    app.openProfile(pid);
+                  }}
+                  className={cx("flex min-w-0 flex-1 items-center gap-3 rounded-2xl p-1.5 text-left transition", !isMe && "hover:bg-zinc-50", FOCUS)}
+                >
+                  <Avatar person={p} size="md" online={!isMe && p.online} />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-bold">
+                      {isMe ? t("you") : p.name}
+                      {pid === h.host && <span className="ml-1.5 rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-bold text-zinc-500">{t("hostTag")}</span>}
+                    </span>
+                    {p.major && <span className="block truncate text-xs text-zinc-500">{subject(p.major)}</span>}
+                  </span>
+                </button>
+                {!isMe && app.rels[pid] === "connected" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      app.openChat(pid);
+                    }}
+                    className={cx(btn.soft, btn.sm, "shrink-0")}
+                  >
+                    <MessageCircle className="size-4" />
+                    {t("message")}
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </Sheet>
   );
@@ -4840,7 +4892,11 @@ function PullIndicator({ pull, busy }) {
           {busy ? (
             <LoaderCircle className="size-4 animate-spin text-zinc-500" aria-hidden="true" />
           ) : (
-            <ArrowDown className="size-4 text-zinc-500 transition-transform" style={{ transform: pull >= PULL_TRIGGER ? "rotate(180deg)" : "none" }} aria-hidden="true" />
+            <ArrowDown
+              className="size-4 text-zinc-500 transition-transform"
+              style={{ transform: pull >= PULL_TRIGGER ? "rotate(180deg)" : "none" }}
+              aria-hidden="true"
+            />
           )}
         </span>
       )}
@@ -4907,6 +4963,74 @@ function useSwipeBack(ref, onClose) {
   }, [ref]);
 }
 
+// Drag a sheet down to close it, as on iOS: once its content is scrolled to the top it follows the finger, and letting go
+// past a quarter of its height (or with a flick) closes it. Sideways swipes (photo galleries) and scrolling are left alone.
+function useSwipeDown(panelRef, scrollerRef, backdropRef, onClose) {
+  const latest = useRef(onClose);
+  useEffect(() => {
+    latest.current = onClose;
+  });
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return undefined;
+    let drag = null;
+    const place = (y, animate) => {
+      const backdrop = backdropRef.current;
+      panel.style.transition = animate ? "transform .28s cubic-bezier(.22,1,.36,1)" : "none";
+      panel.style.transform = y ? `translateY(${y}px)` : "";
+      if (backdrop) {
+        backdrop.style.transition = animate ? "opacity .28s ease" : "none";
+        backdrop.style.opacity = String(1 - Math.min(1, y / Math.max(1, panel.offsetHeight)));
+      }
+    };
+    const start = (e) => {
+      const touch = e.touches[0];
+      drag = e.touches.length === 1 ? { x: touch.clientX, y: touch.clientY, at: performance.now(), dy: 0, live: false } : null;
+    };
+    const move = (e) => {
+      if (!drag) return;
+      const dx = e.touches[0].clientX - drag.x;
+      const dy = e.touches[0].clientY - drag.y;
+      if (!drag.live) {
+        if (Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+        const scroller = scrollerRef.current;
+        const atTop = !scroller || !scroller.contains(e.target) || scroller.scrollTop <= 0;
+        // Decide on the first clear movement, before iOS starts scrolling: only a downward pull at the top moves the sheet.
+        if (!atTop || dy <= 0 || Math.abs(dx) >= dy) {
+          drag = null;
+          return;
+        }
+        drag.live = true;
+        panel.style.animation = "none";
+        if (backdropRef.current) backdropRef.current.style.animation = "none";
+      }
+      drag.dy = Math.max(0, dy);
+      place(drag.dy, false);
+      e.preventDefault();
+    };
+    const end = (e) => {
+      const done = drag;
+      drag = null;
+      if (!done?.live) return;
+      const speed = done.dy / Math.max(1, performance.now() - done.at);
+      if (e.type === "touchend" && (done.dy > panel.offsetHeight * 0.25 || (speed > 0.6 && done.dy > 40))) {
+        place(panel.offsetHeight + 40, true);
+        setTimeout(() => latest.current(), 240);
+      } else place(0, true);
+    };
+    panel.addEventListener("touchstart", start, { passive: true });
+    panel.addEventListener("touchmove", move, { passive: false });
+    panel.addEventListener("touchend", end);
+    panel.addEventListener("touchcancel", end);
+    return () => {
+      panel.removeEventListener("touchstart", start);
+      panel.removeEventListener("touchmove", move);
+      panel.removeEventListener("touchend", end);
+      panel.removeEventListener("touchcancel", end);
+    };
+  }, [panelRef, scrollerRef, backdropRef]);
+}
+
 function messagePreview(m, thread, app, t, tx) {
   if (m.from === "sys") return t(m.key, m.vars);
   if (m.from === ME) return `${t("you")}: ${tx(m.text)}`;
@@ -4922,14 +5046,9 @@ function ChatsView() {
     .sort((a, b) => lastTs(b) - lastTs(a));
   const online = app.students.filter((s) => app.rels[s.id] === "connected" && s.online);
   const active = wide ? (threads.some((th) => th.id === app.activeThread) ? app.activeThread : threads[0]?.id) : null;
-  const refresh = usePullToRefresh(() => window.scrollY <= 0, app.refreshAll);
   return (
-    <div
-      {...refresh.bind}
-      className="lg:grid lg:h-[calc(100dvh_-_7.5rem_-_env(safe-area-inset-top,0px))] lg:min-h-[520px] lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-5"
-    >
+    <div className="lg:grid lg:h-[calc(100dvh_-_7.5rem_-_env(safe-area-inset-top,0px))] lg:min-h-[520px] lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-5">
       <div className="flex min-h-0 flex-col">
-        <PullIndicator pull={refresh.pull} busy={refresh.busy} />
         <PageTitle title={t("chatsTitle")} />
         {online.length > 0 && (
           <div className="uc-noscroll -mx-4 mb-3 flex gap-3 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0">
@@ -5995,6 +6114,8 @@ function AppFrame({ app, ui, badges }) {
   const { tab, goBack } = ui.shared;
   const { drawer, profileId, modal, overlay, story } = ui;
   const touchStart = useRef(null);
+  // Pull down at the top of any tab (people, hangouts, groups, chats) to reload.
+  const refresh = usePullToRefresh(() => window.scrollY <= 0, app.refreshAll);
   const closeModal = () => ui.setModal(null);
   const closeOverlay = () => ui.setOverlay(null);
   const onTouchStart = (event) => {
@@ -6018,7 +6139,8 @@ function AppFrame({ app, ui, badges }) {
         <Sidebar badges={badges} />
         <div className="lg:pl-[88px] xl:pl-64">
           <TopBar />
-          <main className="mx-auto max-w-5xl px-4 pb-28 pt-4 lg:px-8 lg:pb-8 lg:pt-6">
+          <main {...refresh.bind} className="mx-auto max-w-5xl px-4 pb-28 pt-4 lg:px-8 lg:pb-8 lg:pt-6">
+            <PullIndicator pull={refresh.pull} busy={refresh.busy} />
             <div key={tab} className="uc-fade">
               {tab === "start" && <PeopleView />}
               {tab === "spontan" && <SpontanView />}
@@ -6712,7 +6834,10 @@ function LiveApp({ profile, backend, onLogout, onDeleteAccount }) {
       setDb((d) => ({ ...d, notifications: d.notifications.map((n) => ({ ...n, read: true })) }));
       backend.markNotificationsRead(uid).catch(() => {});
     },
-    logout: () => forgetPush(backend).then(() => backend.signOut()).finally(onLogout),
+    logout: () =>
+      forgetPush(backend)
+        .then(() => backend.signOut())
+        .finally(onLogout),
     refreshAll: () => reload().catch(() => {}),
     deleteAccount: () => backend.deleteAccount(uid).then(onDeleteAccount).catch(fail),
     block,
