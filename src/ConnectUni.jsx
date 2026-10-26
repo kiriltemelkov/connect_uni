@@ -1,5 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { getTheme, setTheme } from "./theme.js";
+import { forgetPush, startPush } from "./push.js";
 import {
+  ArrowDown,
   ArrowLeft,
   Ban,
   Camera,
@@ -42,6 +45,11 @@ const STRINGS = {
     less: "Less",
     more: "More",
     language: "Language",
+    theme: "Appearance",
+    themeSystem: "Auto",
+    themeLight: "Light",
+    themeDark: "Dark",
+    refreshing: "Updating…",
     heroA: "Find ",
     heroB: "your people",
     heroC: " on campus.",
@@ -335,6 +343,11 @@ const STRINGS = {
     less: "Weniger",
     more: "Mehr",
     language: "Sprache",
+    theme: "Darstellung",
+    themeSystem: "Auto",
+    themeLight: "Hell",
+    themeDark: "Dunkel",
+    refreshing: "Wird aktualisiert…",
     heroA: "Finde ",
     heroB: "deine Leute",
     heroC: " auf dem Campus.",
@@ -2302,6 +2315,37 @@ function LangToggle({ className }) {
   );
 }
 
+function ThemeToggle() {
+  const { t } = useI18n();
+  const [theme, setChoice] = useState(getTheme);
+  return (
+    <span role="group" aria-label={t("theme")} className="inline-flex shrink-0 rounded-full bg-black/[0.05] p-0.5 text-[12px] font-bold">
+      {[
+        ["system", "themeSystem"],
+        ["light", "themeLight"],
+        ["dark", "themeDark"],
+      ].map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => {
+            setTheme(id);
+            setChoice(id);
+          }}
+          aria-pressed={theme === id}
+          className={cx(
+            "rounded-full px-2.5 py-1 transition",
+            theme === id ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400 hover:text-zinc-700",
+            FOCUS,
+          )}
+        >
+          {t(label)}
+        </button>
+      ))}
+    </span>
+  );
+}
+
 function IconButton({ label, onClick, children, className, dark = false, disabled = false }) {
   return (
     <button
@@ -3652,11 +3696,11 @@ function StoryViewer({ ids, start, onClose }) {
           <div className="flex gap-1">
             {ids.map((sid, i) => (
               <span key={sid} className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/30">
-                {i < index && <span className="block h-full w-full bg-white" />}
+                {i < index && <span className="uc-keep block h-full w-full bg-white" />}
                 {i === index && (
                   <span
                     key={`${sid}-${index}`}
-                    className="uc-progress block h-full w-full bg-white"
+                    className="uc-progress uc-keep block h-full w-full bg-white"
                     style={{ animationDuration: `${STORY_MS}ms`, animationPlayState: paused ? "paused" : "running" }}
                     onAnimationEnd={next}
                   />
@@ -3774,7 +3818,10 @@ function ProfileSheet({ id, onClose }) {
         <div className="uc-scrim-top pointer-events-none absolute inset-x-0 top-0 h-24" />
         <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center gap-1.5">
           {s.gallery.map((src, i) => (
-            <span key={src} className={cx("h-1 rounded-full transition-all duration-300", i === slide ? "w-6 bg-white" : "w-1.5 bg-white/55")} />
+            <span
+              key={src}
+              className={cx("h-1 rounded-full transition-all duration-300", i === slide ? "uc-keep w-6 bg-white" : "w-1.5 bg-white/55")}
+            />
           ))}
         </div>
         <IconButton dark label={t("close")} onClick={onClose} className="absolute right-3 top-3">
@@ -4693,6 +4740,131 @@ function useOverlay(onClose) {
 
 const lastTs = (thread) => thread.messages.at(-1)?.ts ?? 0;
 
+// Pull down at the top of a list to reload it. The page keeps its normal iOS bounce; the spinner grows with the pull.
+const PULL_TRIGGER = 56;
+function usePullToRefresh(atTop, onRefresh) {
+  const [pull, setPull] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const from = useRef(null);
+  const current = useRef(0);
+  const latest = useRef({ atTop, onRefresh });
+  useEffect(() => {
+    latest.current = { atTop, onRefresh };
+  });
+  const move = (distance) => {
+    current.current = distance;
+    setPull(distance);
+  };
+  const bind = {
+    onTouchStart: (e) => {
+      from.current = e.touches.length === 1 && !busy && latest.current.atTop() ? e.touches[0].clientY : null;
+    },
+    onTouchMove: (e) => {
+      if (from.current == null) return;
+      const dy = e.touches[0].clientY - from.current;
+      move(dy > 0 ? Math.min(dy * 0.5, 90) : 0);
+    },
+    onTouchEnd: () => {
+      if (from.current == null) return;
+      from.current = null;
+      const reached = current.current >= PULL_TRIGGER;
+      move(0);
+      if (!reached) return;
+      setBusy(true);
+      Promise.resolve(latest.current.onRefresh()).finally(() => setTimeout(() => setBusy(false), 400));
+    },
+    onTouchCancel: () => {
+      from.current = null;
+      move(0);
+    },
+  };
+  return { pull, busy, bind };
+}
+
+function PullIndicator({ pull, busy }) {
+  const { t } = useI18n();
+  return (
+    <div
+      className="flex items-end justify-center overflow-hidden"
+      style={{ height: busy ? 44 : pull, transition: pull ? "none" : "height .25s ease" }}
+      role={busy ? "status" : undefined}
+      aria-label={busy ? t("refreshing") : undefined}
+    >
+      {(busy || pull > 8) && (
+        <span
+          className="mb-2 grid size-8 place-items-center rounded-full bg-white shadow-sm ring-1 ring-black/[0.06]"
+          style={{ opacity: busy ? 1 : Math.min(1, pull / 40) }}
+        >
+          {busy ? (
+            <LoaderCircle className="size-4 animate-spin text-zinc-500" aria-hidden="true" />
+          ) : (
+            <ArrowDown className="size-4 text-zinc-500 transition-transform" style={{ transform: pull >= PULL_TRIGGER ? "rotate(180deg)" : "none" }} aria-hidden="true" />
+          )}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// Drag a screen with your finger from the left edge: it follows the finger, and letting go past a third of the width (or with a flick) closes it.
+function useSwipeBack(ref, onClose) {
+  const latest = useRef(onClose);
+  useEffect(() => {
+    latest.current = onClose;
+  });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    let drag = null;
+    const settle = (x) => {
+      el.style.transition = "transform .26s cubic-bezier(.22,1,.36,1)";
+      el.style.transform = `translateX(${x}px)`;
+    };
+    const start = (e) => {
+      const touch = e.touches[0];
+      drag = e.touches.length === 1 && touch.clientX <= 32 ? { x: touch.clientX, y: touch.clientY, at: performance.now(), dx: 0, live: false } : null;
+      if (drag) e.stopPropagation(); // the app-wide edge swipe stays out of it
+    };
+    const move = (e) => {
+      if (!drag) return;
+      const dx = e.touches[0].clientX - drag.x;
+      const dy = e.touches[0].clientY - drag.y;
+      if (!drag.live) {
+        if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) drag = null;
+        else if (dx > 8) {
+          drag.live = true;
+          el.style.animation = "none";
+          el.style.transition = "none";
+        }
+        if (!drag?.live) return;
+      }
+      drag.dx = Math.max(0, dx);
+      el.style.transform = `translateX(${drag.dx}px)`;
+      e.preventDefault();
+    };
+    const end = (e) => {
+      const done = drag;
+      drag = null;
+      if (!done?.live) return;
+      const speed = done.dx / Math.max(1, performance.now() - done.at);
+      if (e.type === "touchend" && (done.dx > el.offsetWidth * 0.35 || speed > 0.6)) {
+        settle(el.offsetWidth);
+        setTimeout(() => latest.current(), 220);
+      } else settle(0);
+    };
+    el.addEventListener("touchstart", start, { passive: true });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", end);
+    el.addEventListener("touchcancel", end);
+    return () => {
+      el.removeEventListener("touchstart", start);
+      el.removeEventListener("touchmove", move);
+      el.removeEventListener("touchend", end);
+      el.removeEventListener("touchcancel", end);
+    };
+  }, [ref]);
+}
+
 function messagePreview(m, thread, app, t, tx) {
   if (m.from === "sys") return t(m.key, m.vars);
   if (m.from === ME) return `${t("you")}: ${tx(m.text)}`;
@@ -4708,9 +4880,14 @@ function ChatsView() {
     .sort((a, b) => lastTs(b) - lastTs(a));
   const online = app.students.filter((s) => app.rels[s.id] === "connected" && s.online);
   const active = wide ? (threads.some((th) => th.id === app.activeThread) ? app.activeThread : threads[0]?.id) : null;
+  const refresh = usePullToRefresh(() => window.scrollY <= 0, app.refreshAll);
   return (
-    <div className="lg:grid lg:h-[calc(100dvh_-_7.5rem_-_env(safe-area-inset-top,0px))] lg:min-h-[520px] lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-5">
+    <div
+      {...refresh.bind}
+      className="lg:grid lg:h-[calc(100dvh_-_7.5rem_-_env(safe-area-inset-top,0px))] lg:min-h-[520px] lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-5"
+    >
       <div className="flex min-h-0 flex-col">
+        <PullIndicator pull={refresh.pull} busy={refresh.busy} />
         <PageTitle title={t("chatsTitle")} />
         {online.length > 0 && (
           <div className="uc-noscroll -mx-4 mb-3 flex gap-3 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0">
@@ -4805,6 +4982,7 @@ function ChatThread({ threadId, onBack }) {
   const typingId = app.typing[threadId];
   const count = thread.messages.length;
   const { markRead, watch } = app;
+  const refresh = usePullToRefresh(() => (listRef.current?.scrollTop ?? 1) <= 0, app.refreshAll);
 
   useEffect(() => watch(threadId), [threadId, watch]);
   useEffect(() => {
@@ -4861,7 +5039,8 @@ function ChatThread({ threadId, onBack }) {
         )}
       </header>
 
-      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
+      <div ref={listRef} {...refresh.bind} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
+        <PullIndicator pull={refresh.pull} busy={refresh.busy} />
         {other && (
           <div className="mb-6 flex flex-col items-center text-center">
             <Avatar person={other} size="2xl" ring />
@@ -4962,11 +5141,13 @@ function ChatThread({ threadId, onBack }) {
 
 function ChatDrawer({ threadId, onClose }) {
   const { t } = useI18n();
+  const panel = useRef(null);
   useOverlay(onClose);
+  useSwipeBack(panel, onClose);
   return (
     <div role="dialog" aria-modal="true" aria-label={t("chatsTitle")} className="fixed inset-0 z-[45]">
       <div className="uc-fade absolute inset-0 hidden bg-zinc-950/30 sm:block" onClick={onClose} />
-      <div className="uc-drawer absolute inset-0 flex sm:left-auto sm:w-[420px] sm:shadow-2xl">
+      <div ref={panel} className="uc-drawer absolute inset-0 flex sm:left-auto sm:w-[420px] sm:shadow-2xl">
         <ChatThread threadId={threadId} onBack={onClose} />
       </div>
     </div>
@@ -5295,6 +5476,10 @@ function MeSheet({ onClose }) {
         <div className="mt-6 flex items-center justify-between gap-3">
           <p className={cx(LABEL, "mb-0")}>{t("language")}</p>
           <LangToggle />
+        </div>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className={cx(LABEL, "mb-0")}>{t("theme")}</p>
+          <ThemeToggle />
         </div>
         {blockedList.length > 0 && (
           <>
@@ -6092,6 +6277,7 @@ function MainApp({ profile, onLogout, onDeleteAccount }) {
     setPhoto: (file) => setMe((m) => ({ ...m, photo: URL.createObjectURL(file) })),
     markAllRead: () => setNotifications((list) => (list.some((n) => !n.read) ? list.map((n) => ({ ...n, read: true })) : list)),
     logout: onLogout,
+    refreshAll: () => new Promise((resolve) => setTimeout(resolve, 700)),
     deleteAccount,
     block,
     unblock,
@@ -6294,6 +6480,16 @@ function LiveApp({ profile, backend, onLogout, onDeleteAccount }) {
     [backend, uid, reload, visible],
   );
 
+  // Push notifications (iOS app): the phone's token goes to the server, and tapping a notification opens its chat.
+  const pushLang = useRef(lang);
+  useEffect(() => {
+    pushLang.current = lang;
+  });
+  useEffect(() => {
+    const started = startPush(backend, { lang: () => pushLang.current, onOpen: (id) => latest.current.openThread(id) }).catch(() => () => {});
+    return () => void started.then((stop) => stop());
+  }, [backend]);
+
   const markRead = useCallback(
     (threadId) => {
       const at = new Date().toISOString();
@@ -6473,7 +6669,8 @@ function LiveApp({ profile, backend, onLogout, onDeleteAccount }) {
       setDb((d) => ({ ...d, notifications: d.notifications.map((n) => ({ ...n, read: true })) }));
       backend.markNotificationsRead(uid).catch(() => {});
     },
-    logout: () => backend.signOut().finally(onLogout),
+    logout: () => forgetPush(backend).then(() => backend.signOut()).finally(onLogout),
+    refreshAll: () => reload().catch(() => {}),
     deleteAccount: () => backend.deleteAccount(uid).then(onDeleteAccount).catch(fail),
     block,
     unblock,

@@ -5,6 +5,9 @@ import "@fontsource-variable/plus-jakarta-sans";
 import "./index.css";
 import ConnectUni from "./ConnectUni.jsx";
 import { backend } from "./backend.js";
+import { applyTheme } from "./theme.js";
+
+applyTheme();
 
 // Inside the iOS app the page should feel like an app: no pinch or tap-to-zoom, no text selection on long press.
 if (Capacitor.isNativePlatform()) {

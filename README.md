@@ -41,6 +41,21 @@ decides what each student can read and write.
 - **Existing database:** if the initial migration is already installed, run the later migrations once:
   `supabase/migrations/20261026120000_hangout_duration.sql` adds hangout durations. New installs get
   that change from the initial migration.
+- **Push notifications:** run `supabase/migrations/20261027120000_push.sql` once (it stores one token per phone). Then,
+  once, the sending side:
+  1. developer.apple.com → Certificates, Identifiers & Profiles → Keys → "+" → name it, tick **Apple Push Notifications
+     service (APNs)** → download the `.p8` file (Apple shows it only once) and note the Key ID.
+  2. Supabase → Edge Functions → Deploy a new function → "Via Editor", name `push`, paste
+     `supabase/functions/push/index.ts`, deploy. In the function's settings switch off "Enforce JWT verification"
+     (the webhook secret below protects it instead).
+  3. Edge Functions → Secrets: `APNS_KEY_ID`, `APNS_TEAM_ID` (UKVNY6ZNC8), `APNS_PRIVATE_KEY` (the whole `.p8` text),
+     `APNS_BUNDLE_ID` (`de.connectuni.app`) and `WEBHOOK_SECRET` (any long random string).
+  4. Database → Webhooks → Create a new hook, twice: table `messages` and table `notifications`, event Insert, type
+     "Supabase Edge Functions" → function `push`, plus the HTTP header `x-webhook-secret` with the same value as
+     `WEBHOOK_SECRET`.
+
+  Until then the app asks for permission and stores the token, but nothing is sent. Push needs a real iPhone (not the
+  simulator) and the Push Notifications capability, which is already in `ios/App/App/App.entitlements`.
 - **Login codes:** Authentication → Email Templates ("Magic Link" and "Confirm signup") must contain
   `{{ .Token }}` so the email shows the 6-digit code, e.g. subject `Dein ConnectUni-Code: {{ .Token }}`.
 - **Email delivery:** Supabase's built-in mailer only sends to members of your Supabase team and only a few
@@ -72,6 +87,13 @@ screenshots are in `store/screenshots/`; `npm run screenshots` makes new ones fr
 Google Chrome).
 
 The iOS 26.3.1 simulator runtime draws emoji as "?" boxes, which is an Apple bug. Real devices are not affected.
+
+## Look and feel
+
+- **Dark mode:** profile sheet → Appearance (Auto follows the phone, or Light / Dark). The palette is swapped in
+  `src/index.css` under `html.dark`; `src/theme.js` sets it. New Tailwind colors need a line there.
+- **Gestures:** a chat follows your finger when you swipe it away from the left edge; pull down in the chat list or in a
+  chat to reload.
 
 ## Using the component elsewhere
 

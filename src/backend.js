@@ -133,6 +133,8 @@ export const backend = {
   invite: async (group, me, ids) =>
     ids.length &&
     must(await supabase.from("group_members").insert(ids.map((id) => ({ group_id: group, user_id: id, status: "invited", invited_by: me })))),
+  savePushToken: async (token, lang) => must(await supabase.rpc("save_push_token", { device_token: token, language: lang })),
+  deletePushToken: async (token) => must(await supabase.rpc("delete_push_token", { device_token: token })),
   markNotificationsRead: async (me) => must(await supabase.from("notifications").update({ read: true }).eq("user_id", me).eq("read", false)),
 
   /* Live updates: new messages arrive as rows, everything else triggers a refresh */
