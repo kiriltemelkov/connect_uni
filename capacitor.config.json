@@ -5,7 +5,7 @@
   "backgroundColor": "#fafafa",
   "plugins": {
     "Keyboard": {
-      "resize": "native"
+      "resize": "none"
     }
   }
 }

@@ -18,8 +18,11 @@ export function applyTheme(theme = getTheme()) {
   document.documentElement.classList.toggle("dark", dark);
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0a0a0c" : "#fafafa");
   if (Capacitor.isNativePlatform()) {
-    // Status bar text: light on a dark app, dark on a light one.
+    // Status bar text: light on a dark app, dark on a light one; the keyboard matches the app.
     import("@capacitor/status-bar").then(({ StatusBar, Style }) => StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light })).catch(() => {});
+    import("@capacitor/keyboard")
+      .then(({ Keyboard, KeyboardStyle }) => Keyboard.setStyle({ style: dark ? KeyboardStyle.Dark : KeyboardStyle.Light }))
+      .catch(() => {});
   }
 }
 

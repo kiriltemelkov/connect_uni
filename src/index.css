@@ -32,6 +32,24 @@ html.native button:active {
   opacity: 0.6;
 }
 
+/* iOS keyboard (src/keyboard.js): --uc-kb is its height while it's open. Chats and sheets end above it and slide up
+   together with it; the page gets room to scroll a focused field above it. */
+:root {
+  --uc-kb: 0px;
+}
+.uc-kb-lift {
+  bottom: var(--uc-kb);
+  transition: bottom 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+/* Full-screen panels (chat) keep their background under the keyboard, so nothing shows through its rounded corners. */
+.uc-kb-pad {
+  padding-bottom: var(--uc-kb);
+  transition: padding-bottom 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+html.native body {
+  padding-bottom: var(--uc-kb);
+}
+
 /* Dark mode (src/theme.js puts "dark" on <html>). The components use Tailwind's light colors, so the palette is
    swapped here instead of repeating every class; [class~="…"] matches a whole class name, so no escaping is needed.
    Photos, the story viewer and the gradient buttons keep their own colors; .uc-keep marks white that must stay white. */

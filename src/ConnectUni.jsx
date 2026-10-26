@@ -2433,14 +2433,20 @@ function Sheet({ onClose, title, children, footer, wide = false, z = "z-50", bar
     };
   }, []);
   return (
-    <div role="dialog" aria-modal="true" aria-label={title} className={cx("fixed inset-0 flex items-end justify-center sm:items-center sm:p-6", z)}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      className={cx("uc-kb-lift fixed inset-0 flex items-end justify-center sm:items-center sm:p-6", z)}
+    >
       <div ref={backdrop} className="uc-fade absolute inset-0 bg-zinc-950/40 backdrop-blur-[2px]" onClick={onClose} />
       <div
         ref={panel}
         className={cx(
-          "uc-sheet relative flex max-h-[94dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white shadow-2xl sm:rounded-[28px]",
+          "uc-sheet relative flex w-full flex-col overflow-hidden rounded-t-[28px] bg-white shadow-2xl sm:rounded-[28px]",
           wide ? "sm:max-w-2xl" : "sm:max-w-md",
         )}
+        style={{ maxHeight: "calc(94dvh - var(--uc-kb))" }}
       >
         {!bare && (
           <header className="flex items-center justify-between gap-3 px-5 pb-1 pt-4">
@@ -2453,14 +2459,14 @@ function Sheet({ onClose, title, children, footer, wide = false, z = "z-50", bar
         <div
           ref={scroller}
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
-          style={footer ? undefined : { paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+          style={footer ? undefined : { paddingBottom: "max(0px, calc(env(safe-area-inset-bottom, 0px) - var(--uc-kb)))" }}
         >
           {children}
         </div>
         {footer && (
           <footer
             className="border-t border-black/[0.05] bg-white px-5 pt-3"
-            style={{ paddingBottom: "max(0.875rem, env(safe-area-inset-bottom, 0px))" }}
+            style={{ paddingBottom: "max(0.875rem, calc(env(safe-area-inset-bottom, 0px) - var(--uc-kb)))" }}
           >
             {footer}
           </footer>
@@ -5150,6 +5156,21 @@ function ChatThread({ threadId, onBack }) {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [count, typingId]);
+  // Keep the newest messages in view while the list gets shorter, e.g. as the keyboard slides up: if the list showed the
+  // end before this resize, it shows the end after it. (Measured against the previous height, not scroll events, which
+  // arrive a frame late during the slide.)
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return undefined;
+    let lastHeight = el.clientHeight;
+    const resized = new ResizeObserver(() => {
+      const wasAtEnd = el.scrollHeight - el.scrollTop - lastHeight < 40;
+      lastHeight = el.clientHeight;
+      if (wasAtEnd) el.scrollTop = el.scrollHeight;
+    });
+    resized.observe(el);
+    return () => resized.disconnect();
+  }, []);
   useEffect(() => {
     if (thread.unread) markRead(threadId);
   }, [thread.unread, threadId, markRead]);
@@ -5264,7 +5285,10 @@ function ChatThread({ threadId, onBack }) {
         </ol>
       </div>
 
-      <div className="border-t border-black/[0.05] px-3 pt-2.5" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}>
+      <div
+        className="border-t border-black/[0.05] px-3 pt-2.5"
+        style={{ paddingBottom: "max(0.75rem, calc(env(safe-area-inset-bottom, 0px) - var(--uc-kb)))" }}
+      >
         <div className="uc-noscroll -mx-3 mb-2 flex gap-1.5 overflow-x-auto px-3">
           {QUICK_REPLIES[lang].map((reply) => (
             <button key={reply} type="button" onClick={() => send(reply)} className={cx(PILL, PILL_OFF, "py-1.5")}>
@@ -5308,7 +5332,7 @@ function ChatDrawer({ threadId, onClose }) {
   return (
     <div role="dialog" aria-modal="true" aria-label={t("chatsTitle")} className="fixed inset-0 z-[45]">
       <div className="uc-fade absolute inset-0 hidden bg-zinc-950/30 sm:block" onClick={onClose} />
-      <div ref={panel} className="uc-drawer absolute inset-0 flex sm:left-auto sm:w-[420px] sm:shadow-2xl">
+      <div ref={panel} className="uc-drawer uc-kb-pad absolute inset-0 flex bg-white sm:left-auto sm:w-[420px] sm:shadow-2xl">
         <ChatThread threadId={threadId} onBack={onClose} />
       </div>
     </div>
