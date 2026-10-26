@@ -79,6 +79,10 @@ Team) works for 7 days per install; TestFlight and the App Store need the paid A
 The bundle ID is `de.connectuni.app`; it can't be changed once the app exists in App Store Connect. The app is
 iPhone-only for now, so the App Store needs no iPad screenshots.
 
+After adding a Capacitor plugin, clean the build (Xcode: Product → Clean Build Folder, or `xcodebuild` with a fresh
+`-derivedDataPath`) before archiving. Otherwise Xcode can reuse the old package graph and leave the new plugin out of
+the app without any error, and its JavaScript calls fail silently. Check with `strings App.app/App | grep PushNotificationsPlugin`.
+
 ## App Store
 
 [`store/app-store.md`](store/app-store.md) has everything to enter in App Store Connect: texts in German and
