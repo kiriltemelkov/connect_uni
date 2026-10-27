@@ -43,6 +43,11 @@ decides what each student can read and write.
   that change from the initial migration.
 - **Moderation (App Store guideline 1.2):** run `supabase/migrations/20261027130000_moderation.sql` once: it replaces
   insults and slurs with `***` in messages, names, hangouts and groups, and adds bans (`ban_user`, below).
+  Then run `supabase/migrations/20261027150000_word_filter_v2.sql` once: the words move into the table `blocked_words`
+  (about 120 German and English insults, slurs, threats and sexual terms), the filter also catches spellings like
+  `f*ck`, `4rschl0ch`, `h u r e n s o h n` and `Scheisse`, and texts saved earlier are cleaned. To block another word,
+  add a row in Table Editor → `blocked_words` (lowercase; `whole_word` = true if longer words must stay untouched); it
+  works immediately. Try a text with `select public.clean_text('…');` in the SQL Editor.
 - **Push notifications:** run `supabase/migrations/20261027120000_push.sql` once (it stores one token per phone). Then,
   once, the sending side:
   1. developer.apple.com → Certificates, Identifiers & Profiles → Keys → "+" → name it, tick **Apple Push Notifications

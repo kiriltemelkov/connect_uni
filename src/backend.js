@@ -115,7 +115,7 @@ export const backend = {
   report: async (me, id, reason, note) =>
     must(await supabase.from("reports").insert({ reporter_id: me, reported_id: id, reason, note: note || null })),
   startDm: async (other) => must(await supabase.rpc("start_dm", { other })),
-  // Returns the message as saved: the server replaces offensive words with *** (supabase/migrations/20261027130000_moderation.sql).
+  // Returns the message as saved: the server replaces offensive words with *** (supabase/migrations/20261027150000_word_filter_v2.sql).
   sendMessage: async (row) => must(await supabase.from("messages").insert(row).select().single()),
   markRead: async (conversation, me) =>
     must(
@@ -125,10 +125,11 @@ export const backend = {
         .eq("conversation_id", conversation)
         .eq("user_id", me),
     ),
-  createHangout: async (row) => must(await supabase.from("hangouts").insert(row)),
+  // Both return the row as saved, after the word filter (supabase/migrations/20261027150000_word_filter_v2.sql).
+  createHangout: async (row) => must(await supabase.from("hangouts").insert(row).select().single()),
   deleteHangout: async (id) => must(await supabase.from("hangouts").delete().eq("id", id)),
   joinHangout: async (hangout, me) => must(await supabase.from("hangout_members").insert({ hangout_id: hangout, user_id: me })),
-  createGroup: async (row) => must(await supabase.from("groups").insert(row).select("id").single()).id,
+  createGroup: async (row) => must(await supabase.from("groups").insert(row).select("id, name, about").single()),
   joinGroup: async (group, me) => must(await supabase.from("group_members").insert({ group_id: group, user_id: me })),
   acceptInvite: async (group, me) => must(await supabase.from("group_members").update({ status: "member" }).eq("group_id", group).eq("user_id", me)),
   invite: async (group, me, ids) =>

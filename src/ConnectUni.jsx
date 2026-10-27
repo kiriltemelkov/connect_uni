@@ -335,6 +335,8 @@ const STRINGS = {
     errUniMismatch: "This address doesn't match the university you picked.",
     noProfileYet: "There's no profile for this address yet. Sign up first.",
     errGeneric: "Something went wrong. Please try again.",
+    filteredTitle: "Some words were hidden",
+    filteredBody: "They break the community rules, so they now show as ***.",
     errFull: "This hangout is already full.",
     someone: "Someone",
     waved: "Waved",
@@ -643,6 +645,8 @@ const STRINGS = {
     errUniMismatch: "Diese Adresse passt nicht zur gewählten Hochschule.",
     noProfileYet: "Zu dieser Adresse gibt es noch kein Profil. Registrier dich zuerst.",
     errGeneric: "Da ist etwas schiefgelaufen. Versuch's bitte nochmal.",
+    filteredTitle: "Ein paar Wörter wurden ausgeblendet",
+    filteredBody: "Sie verstoßen gegen die Community-Regeln und erscheinen jetzt als ***.",
     errFull: "Dieser Hangout ist schon voll.",
     someone: "Jemand",
     waved: "Gewunken",
@@ -6550,6 +6554,8 @@ function LiveApp({ profile, backend, onLogout, onDeleteAccount }) {
   const first = (id) => firstName(person(id).name);
   const fail = (error) => toast({ emoji: "⚠️", title: t("errGeneric"), body: error?.message });
   const refresh = () => reload().catch(() => {});
+  // The server replaced words (word filter): tell the author, so it doesn't look like a typo.
+  const filtered = (changed) => changed && toast({ emoji: "🙊", title: t("filteredTitle"), body: t("filteredBody") });
 
   // New rows from the server. Values from the latest render come in through a ref.
   const latest = useRef(null);
@@ -6660,7 +6666,10 @@ function LiveApp({ profile, backend, onLogout, onDeleteAccount }) {
     setDb((d) => ({ ...d, messages: [row, ...d.messages] }));
     backend
       .sendMessage({ id: row.id, conversation_id: threadId, sender_id: uid, body: text })
-      .then((saved) => setDb((d) => ({ ...d, messages: d.messages.map((m) => (m.id === saved.id ? saved : m)) })))
+      .then((saved) => {
+        setDb((d) => ({ ...d, messages: d.messages.map((m) => (m.id === saved.id ? saved : m)) }));
+        filtered(saved.body !== text);
+      })
       .catch((error) => {
         setDb((d) => ({ ...d, messages: d.messages.filter((m) => m.id !== row.id) }));
         fail(error);
@@ -6691,7 +6700,10 @@ function LiveApp({ profile, backend, onLogout, onDeleteAccount }) {
         max_people: data.max,
         audience: data.audience,
       }),
-      () => toast({ emoji: "🚀", title: t("posted"), body: data.title }),
+      (saved) => {
+        toast({ emoji: "🚀", title: t("posted"), body: saved.title });
+        filtered(saved.title !== data.title || saved.place !== data.place);
+      },
     );
   const deleteHangout = (id) =>
     run(backend.deleteHangout(id), () => {
@@ -6708,10 +6720,14 @@ function LiveApp({ profile, backend, onLogout, onDeleteAccount }) {
   };
   const createGroup = ({ emoji, name, about, audience, invited }) =>
     run(
-      backend
-        .createGroup({ owner_id: uid, uni_id: me.uni.id, emoji, name, about: about || null, audience })
-        .then((id) => backend.invite(id, uid, invited.map(real))),
-      () => toast({ emoji, title: t("created"), body: invited.length ? t("invitesSent", { n: invited.length }) : name }),
+      backend.createGroup({ owner_id: uid, uni_id: me.uni.id, emoji, name, about: about || null, audience }).then(async (saved) => {
+        await backend.invite(saved.id, uid, invited.map(real));
+        return saved;
+      }),
+      (saved) => {
+        toast({ emoji, title: t("created"), body: invited.length ? t("invitesSent", { n: invited.length }) : saved.name });
+        filtered(saved.name !== name || (saved.about ?? "") !== (about || ""));
+      },
     );
   const inviteToGroup = (groupId, ids) =>
     run(backend.invite(groupId, uid, ids.map(real)), () => toast({ emoji: "💌", title: t("invitesSent", { n: ids.length }) }));
