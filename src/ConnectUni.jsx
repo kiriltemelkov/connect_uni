@@ -3,6 +3,7 @@ import { getTheme, setTheme } from "./theme.js";
 import { Capacitor } from "@capacitor/core";
 import { enablePush, forgetPush, pushState, startPush } from "./push.js";
 import { LEGAL, SUPPORT_EMAIL } from "./legal.js";
+import { success, tap } from "./haptics.js";
 import {
   ArrowDown,
   ArrowLeft,
@@ -2430,6 +2431,7 @@ function Sheet({ onClose, title, children, footer, wide = false, z = "z-50", bar
   const scroller = useRef(null);
   const backdrop = useRef(null);
   useSwipeDown(panel, scroller, backdrop, onClose);
+  useCardStack();
   const closeRef = useRef(onClose);
   useEffect(() => {
     closeRef.current = onClose;
@@ -2460,6 +2462,14 @@ function Sheet({ onClose, title, children, footer, wide = false, z = "z-50", bar
         )}
         style={{ maxHeight: "calc(94dvh - var(--uc-kb))" }}
       >
+        {/* Grabber: shows that the sheet can be pulled down (phones only). */}
+        <span
+          aria-hidden="true"
+          className={cx(
+            "pointer-events-none absolute left-1/2 top-2 z-10 h-[5px] w-9 -translate-x-1/2 rounded-full sm:hidden",
+            bare ? "bg-white/70" : "bg-zinc-300",
+          )}
+        />
         {!bare && (
           <header className="flex items-center justify-between gap-3 px-5 pb-1 pt-4">
             <h2 className="min-w-0 truncate text-lg font-extrabold tracking-tight">{title}</h2>
@@ -4874,6 +4884,7 @@ function usePullToRefresh(atTop, onRefresh) {
     latest.current = { atTop, onRefresh };
   });
   const move = (distance) => {
+    if (distance >= PULL_TRIGGER && current.current < PULL_TRIGGER) tap(); // like iOS: a tick when letting go would reload
     current.current = distance;
     setPull(distance);
   };
@@ -4974,6 +4985,7 @@ function useSwipeBack(ref, onClose) {
       if (!done?.live) return;
       const speed = done.dx / Math.max(1, performance.now() - done.at);
       if (e.type === "touchend" && (done.dx > el.offsetWidth * 0.35 || speed > 0.6)) {
+        tap();
         settle(el.offsetWidth);
         setTimeout(() => latest.current(), 220);
       } else settle(0);
@@ -5002,14 +5014,19 @@ function useSwipeDown(panelRef, scrollerRef, backdropRef, onClose) {
     const panel = panelRef.current;
     if (!panel) return undefined;
     let drag = null;
+    const root = document.documentElement;
     const place = (y, animate) => {
       const backdrop = backdropRef.current;
+      const progress = Math.min(1, y / Math.max(1, panel.offsetHeight));
       panel.style.transition = animate ? "transform .28s cubic-bezier(.22,1,.36,1)" : "none";
       panel.style.transform = y ? `translateY(${y}px)` : "";
       if (backdrop) {
         backdrop.style.transition = animate ? "opacity .28s ease" : "none";
-        backdrop.style.opacity = String(1 - Math.min(1, y / Math.max(1, panel.offsetHeight)));
+        backdrop.style.opacity = String(1 - progress);
       }
+      // The page behind (useCardStack) grows back as the sheet goes down.
+      root.classList.toggle("uc-dragging", !animate);
+      root.style.setProperty("--uc-drag", String(progress));
     };
     const start = (e) => {
       const touch = e.touches[0];
@@ -5042,6 +5059,7 @@ function useSwipeDown(panelRef, scrollerRef, backdropRef, onClose) {
       if (!done?.live) return;
       const speed = done.dy / Math.max(1, performance.now() - done.at);
       if (e.type === "touchend" && (done.dy > panel.offsetHeight * 0.25 || (speed > 0.6 && done.dy > 40))) {
+        tap();
         place(panel.offsetHeight + 40, true);
         setTimeout(() => latest.current(), 240);
       } else place(0, true);
@@ -5057,6 +5075,40 @@ function useSwipeDown(panelRef, scrollerRef, backdropRef, onClose) {
       panel.removeEventListener("touchcancel", end);
     };
   }, [panelRef, scrollerRef, backdropRef]);
+}
+
+// iOS card stack: while a sheet is open on a phone, the page behind shrinks back into a rounded card (styles in
+// src/index.css). The page is pinned first, so it keeps its scroll position and its sticky top bar.
+const cardStack = { open: 0, y: 0, timer: null };
+function useCardStack() {
+  useEffect(() => {
+    const stage = document.querySelector(".uc-stage");
+    if (!stage || window.innerWidth >= 640) return undefined;
+    const root = document.documentElement;
+    if (cardStack.open++ === 0) {
+      if (cardStack.timer) {
+        // Another sheet opens while the last one is still closing: the page is still pinned.
+        clearTimeout(cardStack.timer);
+        cardStack.timer = null;
+      } else {
+        cardStack.y = window.scrollY;
+        stage.classList.add("uc-stage-fixed");
+        stage.scrollTop = cardStack.y;
+      }
+      root.style.setProperty("--uc-drag", "0");
+      requestAnimationFrame(() => root.classList.add("uc-sheet-open"));
+    }
+    return () => {
+      if (--cardStack.open > 0) return;
+      root.classList.remove("uc-sheet-open", "uc-dragging");
+      cardStack.timer = setTimeout(() => {
+        cardStack.timer = null;
+        stage.classList.remove("uc-stage-fixed");
+        window.scrollTo(0, cardStack.y);
+        root.style.setProperty("--uc-drag", "0");
+      }, 450);
+    };
+  }, []);
 }
 
 function messagePreview(m, thread, app, t, tx) {
@@ -5203,6 +5255,7 @@ function ChatThread({ threadId, onBack }) {
   const send = (value) => {
     const message = (value ?? text).trim();
     if (!message) return;
+    tap();
     app.sendMessage(threadId, message);
     if (value == null) setText("");
   };
@@ -5372,26 +5425,62 @@ const NAV = [
   { id: "chats", icon: MessageCircle, label: "navChats" },
 ];
 
+// Page scroll position, rounded to whether it is past a few thresholds (cheap to re-render on scroll).
+function useScrollState() {
+  const [state, setState] = useState({ y: 0, down: false });
+  useEffect(() => {
+    let last = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (Math.abs(y - last) < 6) return;
+      setState({ y: y > 72 ? 2 : y > 6 ? 1 : 0, down: y > last && y > 72 });
+      last = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return state;
+}
+
+const TAB_TITLES = { spontan: "spontanTitle", groups: "groupsTitle", chats: "chatsTitle" };
+
 function TopBar() {
   const app = useApp();
   const { t, subject } = useI18n();
   const unread = app.notifications.some((n) => !n.read && !app.blocked[n.person]);
+  const scroll = useScrollState();
+  // Like iOS large titles: once the page title has scrolled away, a small one takes the place of the uni badge.
+  const title = scroll.y === 2 && TAB_TITLES[app.tab] ? t(TAB_TITLES[app.tab]) : null;
   return (
-    <header className="uc-glass sticky top-0 z-30 border-b border-black/[0.04]" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
+    <header className={cx("uc-bar sticky top-0 z-30", scroll.y > 0 && "uc-bar-glass")} style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
       <div className="mx-auto flex h-14 max-w-5xl items-center gap-2.5 px-4 lg:px-8">
         <span className="lg:hidden">
           <Logo compact />
         </span>
-        <button
-          type="button"
-          onClick={() => app.openModal({ type: "me" })}
-          className={cx(
-            "min-w-0 truncate rounded-full bg-white px-3 py-1.5 text-[12px] font-bold text-zinc-700 shadow-sm ring-1 ring-black/[0.06] transition hover:ring-black/15",
-            FOCUS,
-          )}
-        >
-          🎓 {app.me.uni.short} · {subject(app.me.major)}
-        </button>
+        <span className="relative grid min-w-0">
+          <button
+            type="button"
+            onClick={() => app.openModal({ type: "me" })}
+            aria-hidden={title ? "true" : undefined}
+            tabIndex={title ? -1 : undefined}
+            className={cx(
+              "col-start-1 row-start-1 min-w-0 truncate rounded-full bg-white px-3 py-1.5 text-[12px] font-bold text-zinc-700 shadow-sm ring-1 ring-black/[0.06] transition duration-300 hover:ring-black/15",
+              title && "pointer-events-none -translate-y-1 opacity-0",
+              FOCUS,
+            )}
+          >
+            🎓 {app.me.uni.short} · {subject(app.me.major)}
+          </button>
+          <span
+            aria-hidden={title ? undefined : "true"}
+            className={cx(
+              "col-start-1 row-start-1 self-center truncate text-[17px] font-extrabold tracking-tight transition duration-300",
+              title ? "opacity-100" : "pointer-events-none translate-y-1 opacity-0",
+            )}
+          >
+            {title}
+          </span>
+        </span>
         <div className="ml-auto flex shrink-0 items-center gap-1">
           <LangToggle />
           <IconButton label={t("notifications")} onClick={() => app.openModal({ type: "notifications" })} className="relative">
@@ -5473,37 +5562,46 @@ function Sidebar({ badges }) {
   );
 }
 
+// iOS 26 tab bar: a glass capsule floating above the home indicator, a lens that slides to the active tab, and a
+// smaller bar without labels while you scroll down (styles in src/index.css).
 function BottomNav({ badges }) {
   const app = useApp();
   const { t } = useI18n();
+  const scroll = useScrollState();
+  const index = NAV.findIndex((item) => item.id === app.tab);
   return (
     <nav
       aria-label="ConnectUni"
-      className="uc-glass fixed inset-x-0 bottom-0 z-30 border-t border-black/[0.05] lg:hidden"
-      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      className="pointer-events-none fixed inset-x-0 z-30 flex justify-center px-4 lg:hidden"
+      style={{ bottom: "max(0.75rem, calc(env(safe-area-inset-bottom, 0px) - 0.5rem))" }}
     >
-      <div className="mx-auto grid h-16 max-w-md grid-cols-4">
+      <div
+        className={cx("uc-liquid uc-tabbar pointer-events-auto relative grid grid-cols-4 rounded-full p-1", scroll.down && "uc-tabbar-compact")}
+        style={{ "--i": index }}
+      >
+        <span className="uc-liquid-lens uc-tablens absolute rounded-full" aria-hidden="true" />
         {NAV.map((item) => {
           const active = app.tab === item.id;
           return (
             <button
               key={item.id}
               type="button"
-              onClick={() => app.setTab(item.id)}
+              onClick={() => {
+                if (!active) tap();
+                app.setTab(item.id);
+              }}
               aria-current={active ? "page" : undefined}
               aria-label={t(item.label)}
-              className={cx("relative grid place-items-center", FOCUS)}
+              className={cx(
+                "relative z-10 flex flex-col items-center justify-center gap-0.5 rounded-full transition-colors duration-300",
+                active ? "text-[#e11d63]" : "text-zinc-500",
+                FOCUS,
+              )}
             >
-              <span
-                className={cx(
-                  "grid size-11 place-items-center rounded-2xl transition duration-300",
-                  active ? "uc-grad text-white shadow-[0_8px_18px_-8px_rgba(255,61,127,0.85)]" : "text-zinc-400",
-                )}
-              >
-                <item.icon className="size-[22px]" strokeWidth={active ? 2.4 : 2} />
-              </span>
+              <item.icon className="size-[22px]" strokeWidth={active ? 2.4 : 2} />
+              <span className="uc-tablabel overflow-hidden text-[10px] font-bold leading-[14px]">{t(item.label)}</span>
               {badges[item.id] > 0 && (
-                <span className="uc-tnum absolute left-1/2 top-1.5 ml-2 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+                <span className="uc-tnum absolute right-[18%] top-1 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
                   {badges[item.id]}
                 </span>
               )}
@@ -5968,6 +6066,7 @@ function useAppUi() {
   };
   const burst = (rect, emojis = BURST) => {
     if (!rect) return;
+    success();
     const x = rect.left + rect.width / 2;
     const y = rect.top + rect.height / 2;
     const batch = Array.from({ length: 12 }, (_, i) => ({
@@ -6064,6 +6163,11 @@ function AppFrame({ app, ui, badges }) {
   const touchStart = useRef(null);
   // Pull down at the top of any tab (people, hangouts, groups, chats) to reload.
   const refresh = usePullToRefresh(() => window.scrollY <= 0, app.refreshAll);
+  // The top bar covers the status bar while the app is shown (src/index.css → html.uc-app).
+  useEffect(() => {
+    document.documentElement.classList.add("uc-app");
+    return () => document.documentElement.classList.remove("uc-app");
+  }, []);
   const closeModal = () => ui.setModal(null);
   const closeOverlay = () => ui.setOverlay(null);
   const onTouchStart = (event) => {
@@ -6084,20 +6188,23 @@ function AppFrame({ app, ui, badges }) {
   return (
     <AppContext.Provider value={app}>
       <div className="min-h-[100dvh]" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onTouchCancel={() => { touchStart.current = null; }}>
-        <Sidebar badges={badges} />
-        <div className="lg:pl-[88px] xl:pl-64">
-          <TopBar />
-          <main {...refresh.bind} className="mx-auto max-w-5xl px-4 pb-28 pt-4 lg:px-8 lg:pb-8 lg:pt-6">
-            <PullIndicator pull={refresh.pull} busy={refresh.busy} />
-            <div key={tab} className="uc-fade">
-              {tab === "start" && <PeopleView />}
-              {tab === "spontan" && <SpontanView />}
-              {tab === "groups" && <GroupsView />}
-              {tab === "chats" && <ChatsView />}
-            </div>
-          </main>
+        {/* The page; sheets and overlays stay outside, so only this shrinks back behind a sheet (useCardStack). */}
+        <div className="uc-stage min-h-[100dvh] bg-[#FAFAFA]">
+          <Sidebar badges={badges} />
+          <div className="lg:pl-[88px] xl:pl-64">
+            <TopBar />
+            <main {...refresh.bind} className="mx-auto max-w-5xl px-4 pb-28 pt-4 lg:px-8 lg:pb-8 lg:pt-6">
+              <PullIndicator pull={refresh.pull} busy={refresh.busy} />
+              <div key={tab} className="uc-fade">
+                {tab === "start" && <PeopleView />}
+                {tab === "spontan" && <SpontanView />}
+                {tab === "groups" && <GroupsView />}
+                {tab === "chats" && <ChatsView />}
+              </div>
+            </main>
+          </div>
+          <BottomNav badges={badges} />
         </div>
-        <BottomNav badges={badges} />
         {drawer && app.threads[drawer] && <ChatDrawer threadId={drawer} onClose={() => ui.setDrawer(null)} />}
         {profileId && <ProfileSheet id={profileId} onClose={() => ui.setProfileId(null)} />}
         {modal?.type === "hangout" && <CreateHangoutSheet onClose={closeModal} />}

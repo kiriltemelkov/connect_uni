@@ -50,6 +50,129 @@ html.native body {
   padding-bottom: var(--uc-kb);
 }
 
+/* ── iOS 26 look ("Liquid Glass") ───────────────────────────────────────────────────────────────────────────────────
+   Translucent, blurred material with a thin light edge, springy motion, a floating tab bar that shrinks while you scroll,
+   a top bar that turns into glass once content slides under it, and sheets that push the page back like native ones.
+   WebKit can't refract like the real material, so blur, saturation and highlights stand in for it. */
+:root {
+  --uc-spring: cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* A spring with a hint of overshoot where the browser can do it (iOS 17.2+), the plain curve before that. */
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --uc-spring: linear(0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, 1.017 19.4%, 1.067, 1.099 24.3%, 1.104 26.3%, 1.096 28.9%, 1.035 37.3%, 1.007 42.1%, 0.993 47.6%, 0.995 61.3%, 1);
+  }
+}
+.uc-liquid {
+  background: rgba(255, 255, 255, 0.58);
+  -webkit-backdrop-filter: blur(22px) saturate(1.9);
+  backdrop-filter: blur(22px) saturate(1.9);
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -0.5px 0 rgba(255, 255, 255, 0.4),
+    0 0 0 0.5px rgba(0, 0, 0, 0.07),
+    0 12px 32px -12px rgba(0, 0, 0, 0.3);
+}
+html.dark .uc-liquid {
+  background: rgba(38, 38, 44, 0.58);
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -0.5px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 0.5px rgba(255, 255, 255, 0.08),
+    0 12px 32px -12px rgba(0, 0, 0, 0.7);
+}
+
+/* Tab bar: a capsule above the home indicator; the lens slides to the active tab; scrolling down makes it smaller. */
+.uc-tabbar {
+  width: min(100%, 22rem);
+  height: 62px;
+  transition:
+    width 0.5s var(--uc-spring),
+    height 0.5s var(--uc-spring);
+}
+.uc-tabbar-compact {
+  width: min(100%, 16rem);
+  height: 50px;
+}
+.uc-tablens {
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / 4);
+  transform: translateX(calc(var(--i, 0) * 100%));
+  transition: transform 0.55s var(--uc-spring);
+}
+.uc-liquid-lens {
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow:
+    inset 0 0.5px 0 #fff,
+    0 3px 12px -4px rgba(0, 0, 0, 0.18);
+}
+html.dark .uc-liquid-lens {
+  background: rgba(255, 255, 255, 0.13);
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.3),
+    0 3px 12px -4px rgba(0, 0, 0, 0.5);
+}
+.uc-tablabel {
+  transition:
+    opacity 0.25s ease,
+    max-height 0.4s var(--uc-spring);
+  max-height: 14px;
+}
+.uc-tabbar-compact .uc-tablabel {
+  opacity: 0;
+  max-height: 0;
+}
+
+/* Top bar: clear at the top of a page, glass once something scrolls under it. */
+.uc-bar {
+  transition:
+    background-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+.uc-bar-glass {
+  background: rgba(250, 250, 250, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  backdrop-filter: blur(20px) saturate(1.8);
+  box-shadow: 0 0.5px 0 rgba(0, 0, 0, 0.08);
+}
+html.dark .uc-bar-glass {
+  background: rgba(10, 10, 12, 0.72);
+  box-shadow: 0 0.5px 0 rgba(255, 255, 255, 0.08);
+}
+/* In the app the top bar covers the status bar itself. */
+html.uc-app body::before {
+  display: none;
+}
+
+/* Sheets on a phone: the page behind shrinks back into a card (src/ConnectUni.jsx → useCardStack) and follows the
+   finger while a sheet is pulled down (--uc-drag goes from 0 to 1). */
+@media (width < 40rem) {
+  .uc-stage {
+    transform-origin: 50% 50%;
+    transition:
+      transform 0.45s var(--uc-spring),
+      border-radius 0.45s var(--uc-spring),
+      filter 0.45s ease;
+  }
+  .uc-stage-fixed {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+  }
+  html.uc-sheet-open body {
+    background: #000;
+  }
+  html.uc-sheet-open .uc-stage {
+    transform: scale(calc(0.93 + 0.07 * var(--uc-drag, 0)));
+    border-radius: calc(26px * (1 - var(--uc-drag, 0)));
+  }
+  html.uc-dragging .uc-stage {
+    transition: none;
+  }
+}
+
 /* Dark mode (src/theme.js puts "dark" on <html>). The components use Tailwind's light colors, so the palette is
    swapped here instead of repeating every class; [class~="…"] matches a whole class name, so no escaping is needed.
    Photos, the story viewer and the gradient buttons keep their own colors; .uc-keep marks white that must stay white. */

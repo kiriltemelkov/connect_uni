@@ -106,8 +106,14 @@ The iOS 26.3.1 simulator runtime draws emoji as "?" boxes, which is an Apple bug
 
 - **Dark mode:** profile sheet → Appearance (Auto follows the phone, or Light / Dark). The palette is swapped in
   `src/index.css` under `html.dark`; `src/theme.js` sets it. New Tailwind colors need a line there.
-- **Gestures:** a chat follows your finger when you swipe it away from the left edge; pull down in the chat list or in a
-  chat to reload.
+- **Gestures:** a chat follows your finger when you swipe it away from the left edge; sheets follow it when pulled down;
+  pull down at the top of any tab or in a chat to reload.
+- **iOS 26 look ("Liquid Glass"):** a floating glass tab bar with a lens that slides to the active tab and shrinks while
+  you scroll down, a top bar that turns to glass (with a small page title) once content scrolls under it, and sheets that
+  push the page back into a card like native ones. The material and the spring curve live in `src/index.css`; WebKit
+  can't refract like the real material, so blur, saturation and thin highlights stand in for it.
+- **Haptics:** `src/haptics.js` (Capacitor Haptics) taps on tab changes, gestures and sending, and plays the success
+  pattern for matches and joins. Only in the iOS app.
 
 ## Website (privacy policy, support, imprint)
 
