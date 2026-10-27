@@ -9,10 +9,11 @@
 --   ß/ss, ä/ae, ö/oe, ü/ue.
 -- • Texts saved before the filter existed are cleaned at the end of this script.
 -- The triggers from the moderation migration keep calling public.clean_text, so they pick up the new version as is.
+-- Running the script a second time does no harm.
 
 -- ── The list ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-create table public.blocked_words (
+create table if not exists public.blocked_words (
   word text primary key check (word = lower(word) and char_length(word) between 3 and 60),
   -- false: also longer words that start with it ("hure" → "Hurensohn"); true: only the word itself ("spast", not "Spastik")
   whole_word boolean not null default false,
@@ -55,13 +56,14 @@ insert into public.blocked_words (word, whole_word, note) values
   ('trannies', true, null), ('spic', true, null), ('chink', true, null), ('kike', true, null), ('rape', true, null),
   ('raped', true, null), ('rapist', true, null), ('suck my dick', true, null), ('suck my cock', true, null), ('send nudes', true, null), ('kys', true, null),
   ('kill yourself', true, null), ('kill urself', true, null), ('kill yourselves', true, null), ('go die', true, null),
-  ('i will kill you', true, null), ('i''ll kill you', true, null);
+  ('i will kill you', true, null), ('i''ll kill you', true, null)
+on conflict (word) do nothing;
 
 -- ── Turning a word into a pattern ────────────────────────────────────────────────────────────────────────────────────
 
 -- Each letter accepts its usual stand-ins and repeats; longer single words also accept one dot, dash, star or space
 -- between letters. Spaces in phrases mean "any whitespace", an apostrophe may be left out ("halts maul").
-create function public.word_pattern(word text, whole_word boolean) returns text
+create or replace function public.word_pattern(word text, whole_word boolean) returns text
 language plpgsql immutable set search_path = '' as $$
 declare
   letter text;
