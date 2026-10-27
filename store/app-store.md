@@ -1,7 +1,7 @@
 # App Store Connect: ConnectUni
 
 Alles, was du beim Anlegen der App in App Store Connect eintragen musst. Texte in eckigen Klammern füllst du
-selbst aus. Die Zeichengrenzen von Apple sind eingehalten (geprüft).
+selbst aus (nur noch die Telefonnummer). Die Zeichengrenzen von Apple sind eingehalten (geprüft).
 
 ## App-Informationen
 
@@ -13,10 +13,11 @@ selbst aus. Die Zeichengrenzen von Apple sind eingehalten (geprüft).
 | Primäre Sprache | Deutsch |
 | Kategorie | Soziale Netze (zweite Kategorie optional: Lifestyle) |
 | Preis | Kostenlos |
-| Copyright | 2026 [Vorname Nachname] |
-| Support-URL | `https://connect-uni.de/support` (Seite muss existieren) |
-| Datenschutz-URL | `https://connect-uni.de/datenschutz` (Seite muss existieren) |
-| Altersfreigabe | Fragebogen ehrlich ausfüllen: Nutzer können chatten und Inhalte teilen. Die Nutzungsbedingungen verlangen mindestens 16 Jahre, wähle also 16+, falls der Fragebogen weniger ergibt. |
+| Copyright | 2026 Kiril Temelkov |
+| Support-URL | `https://connect-uni.de/support` (die Seite entsteht mit `node website/build.mjs`, siehe README → Website) |
+| Datenschutz-URL | `https://connect-uni.de/datenschutz` (dto.) |
+| Marketing-URL | optional: `https://connect-uni.de` |
+| Altersfreigabe | Fragebogen ausfüllen wie unten im Abschnitt „Altersfreigabe“, Ergebnis mindestens 16+. |
 | Verschlüsselung | Nichts zu tun, die App erklärt das schon selbst (`ITSAppUsesNonExemptEncryption = NO`). |
 | Rechte an Inhalten | Ja, die App zeigt Inhalte Dritter: Fotos der Nutzer und Bilder von Unsplash (Unsplash-Lizenz). |
 
@@ -124,7 +125,9 @@ Die Personen auf den Fotos sind Unsplash-Bilder aus dem Demo-Modus, keine echten
 
 **Anmeldung erforderlich:** ja. Benutzername `review@connect-uni.de`, Passwort aus `PRUEFKONTEN.local.md`.
 
-**Kontakt:** [Vorname Nachname], [Telefonnummer], support@connect-uni.de
+**Kontakt:** Kiril Temelkov, [Telefonnummer], support@connect-uni.de
+
+Apple verlangt hier eine Telefonnummer für Rückfragen der Prüfer. Sie wird nicht veröffentlicht.
 
 **Notizen** (auf Englisch, für die Prüfer):
 
@@ -147,6 +150,43 @@ The test account belongs to a separate test university with other test students,
 Vor jeder Einreichung: `supabase/review-accounts.sql` noch einmal ausführen (neue Hangouts). Hat Apple das
 Prüfkonto gelöscht, legst du es wie in `PRUEFKONTEN.local.md` beschrieben neu an.
 
+## Altersfreigabe (Fragebogen)
+
+Apple fragt, was die App **kann**, nicht wer sie typischerweise nutzt. Auch Studierende können unter 18 sein, und
+ConnectUni hat Chat und Nutzerinhalte, deshalb zählt das. Die Fragen heißen je nach Version von App Store Connect
+leicht anders; sinngemäß so antworten:
+
+| Frage | Antwort |
+|---|---|
+| Gewalt (Cartoon, realistisch, drastisch), Waffen | Keine |
+| Sexuelle oder anzügliche Inhalte, Nacktheit | Keine (eigene Inhalte der App). Nutzerinhalte deckt die Frage unten ab. |
+| Alkohol, Tabak, Drogen; Horror; Profanität | Keine |
+| Glücksspiel (simuliert oder echt), Wettbewerbe | Keine |
+| Medizinische Informationen, Gesundheitsthemen | Keine |
+| **Nachrichten und Chat** | **Ja** |
+| **Nutzergenerierte Inhalte** | **Ja** (Fotos, Texte, Hangouts, Gruppen) |
+| Uneingeschränkter Webzugriff | Nein (die App öffnet keine freien Webseiten) |
+| Werbung | Nein |
+| Kindersicherung | Nein |
+| Altersüberprüfung durch die App | Nein (wir fragen nur das Geburtsjahr ab und lassen nur Jahrgänge ab 16 zu; keine Ausweisprüfung) |
+
+Das Ergebnis ist meist 13+ oder 16+. Unsere Nutzungsbedingungen und die DSGVO-Einwilligungsgrenze in Deutschland
+verlangen **16 Jahre**: Liegt das Ergebnis darunter, hebst du die Freigabe in App Store Connect auf **16+** an
+(„Altersfreigabe“ → höhere Freigabe wählen / Override). Antworte nie „Keine“ bei Chat oder Nutzerinhalten.
+
+## Händlerstatus (EU, Digital Services Act)
+
+Apple fragt jeden Entwickler, ob er „Händler“ (Trader) ist. Das hängt nicht vom Preis ab, sondern davon, ob du
+beruflich oder geschäftlich handelst.
+
+- **Händler:** Apple zeigt Name, Adresse, Telefonnummer und E-Mail in der EU öffentlich auf der App-Seite. Wähle das,
+  wenn du Einnahmen planst (Werbung, Abo) oder ConnectUni als Geschäft betreibst. Nimm die Angaben, die zum Impressum passen.
+- **Kein Händler:** Ein reines Hobbyprojekt ohne Einnahmen. Dann bleiben die Kontaktdaten verborgen. Bist du unsicher, frag vor dem Einreichen kurz einen Anwalt.
+- **Wichtig:** Als Verkäufer steht in App Store und Impressum **dieselbe Person**. Der Apple-Entwicklerkonto-Inhaber ist
+  Emir Gani, das Impressum nennt Kiril Temelkov. Das passt nicht zusammen. Entweder steht in beiden dieselbe Person
+  (Impressum auf den Konto-Inhaber ändern oder beide als GbR nennen), oder die App zieht auf ein Konto, das auf den
+  Betreiber läuft.
+
 ## App-Datenschutz (Fragebogen)
 
 Tracking: **nein**. Alle Daten dienen der **App-Funktionalität** und sind **mit der Identität verknüpft**.
@@ -159,6 +199,7 @@ Tracking: **nein**. Alle Daten dienen der **App-Funktionalität** und sind **mit
 | Nutzerinhalte → E-Mails oder Textnachrichten | Chat-Nachrichten |
 | Nutzerinhalte → Andere Nutzerinhalte | Über-mich-Text, Status, Hangouts, Gruppen, Meldungen |
 | Kennungen → Nutzer-ID | Konto-ID |
+| Kennungen → Geräte-ID | Push-Token des iPhones (nur wenn Mitteilungen erlaubt sind). Sicherheitshalber angeben: Funktionalität, mit Identität verknüpft, kein Tracking. |
 | Andere Daten → Andere Datentypen | Geburtsjahr, Hochschule, Fächer, Semester, Interessen |
 
 Nicht erhoben: Standort, Kontakte, Nutzungs- und Diagnosedaten, Werbe-IDs, Käufe.

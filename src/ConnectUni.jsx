@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { getTheme, setTheme } from "./theme.js";
 import { Capacitor } from "@capacitor/core";
 import { enablePush, forgetPush, pushState, startPush } from "./push.js";
+import { LEGAL, SUPPORT_EMAIL } from "./legal.js";
 import {
   ArrowDown,
   ArrowLeft,
@@ -15,6 +16,7 @@ import {
   Hand,
   Heart,
   House,
+  Info,
   LoaderCircle,
   LogOut,
   Mail,
@@ -38,8 +40,6 @@ import {
 /* ────────────────────────────────────────────────────────────────────────────
  * ConnectUni: photo-first campus friend finder. Bilingual (DE / EN), all data mocked.
  * ──────────────────────────────────────────────────────────────────────────── */
-
-const SUPPORT_EMAIL = "support@connect-uni.de";
 
 const STRINGS = {
   en: {
@@ -306,6 +306,7 @@ const STRINGS = {
     legalTitle: "Legal & help",
     legal_terms: "Community rules & terms",
     legal_privacy: "Privacy policy",
+    legal_imprint: "Legal notice",
     legal_licenses: "Open-source licenses",
     support: "Contact support",
     deleteAccount: "Delete account",
@@ -612,6 +613,7 @@ const STRINGS = {
     legalTitle: "Rechtliches & Hilfe",
     legal_terms: "Community-Regeln & Nutzungsbedingungen",
     legal_privacy: "Datenschutzerklärung",
+    legal_imprint: "Impressum",
     legal_licenses: "Open-Source-Lizenzen",
     support: "Support kontaktieren",
     deleteAccount: "Konto löschen",
@@ -5704,6 +5706,7 @@ function MeSheet({ onClose }) {
           {[
             ["terms", FileText],
             ["privacy", ShieldCheck],
+            ["imprint", Info],
             ["licenses", Scale],
           ].map(([doc, Icon]) => (
             <button
@@ -5754,105 +5757,7 @@ function MeSheet({ onClose }) {
  * Legal & safety
  * ──────────────────────────────────────────────────────────────────────────── */
 
-// Drafts with placeholders in [brackets]: fill in your details and have them reviewed before release.
 const REPORT_REASONS = ["fake", "harassment", "inappropriate", "spam", "other"];
-
-const LEGAL = {
-  terms: {
-    de: [
-      [
-        "Wer mitmachen darf",
-        "ConnectUni ist nur für Studierende mit einer gültigen Hochschul-E-Mail-Adresse. Du musst mindestens 16 Jahre alt sein und darfst nur ein Konto haben.",
-      ],
-      [
-        "Null Toleranz",
-        "Keine Belästigung, Hassrede, Diskriminierung, Drohungen, sexuellen oder gewaltverherrlichenden Inhalte und kein Spam. Keine Fake-Profile und keine Fotos anderer Personen ohne deren Erlaubnis.",
-      ],
-      [
-        "Melden & Blockieren",
-        "Du kannst jedes Profil und jeden Chat melden und Personen blockieren. Wir prüfen Meldungen innerhalb von 24 Stunden, entfernen verbotene Inhalte und sperren Konten, die gegen diese Regeln verstoßen.",
-      ],
-      ["Deine Inhalte", "Fotos und Texte bleiben deine. Du erlaubst uns, sie in ConnectUni anzuzeigen, solange dein Konto besteht."],
-      ["Treffen", "Hangouts finden im echten Leben statt. Triff dich an öffentlichen Orten und pass auf dich auf."],
-      ["Konto löschen", "Du kannst dein Konto jederzeit unter „Mein Profil → Konto löschen“ löschen. Deine Daten werden dabei endgültig entfernt."],
-      ["Kontakt", SUPPORT_EMAIL],
-    ],
-    en: [
-      [
-        "Who can join",
-        "ConnectUni is only for students with a valid university email address. You must be at least 16 and may only have one account.",
-      ],
-      [
-        "Zero tolerance",
-        "No harassment, hate speech, discrimination, threats, sexual or violent content and no spam. No fake profiles and no photos of other people without their permission.",
-      ],
-      [
-        "Report & block",
-        "You can report any profile or chat and block people. We review reports within 24 hours, remove prohibited content and suspend accounts that break these rules.",
-      ],
-      ["Your content", "Your photos and texts stay yours. You allow us to show them in ConnectUni for as long as your account exists."],
-      ["Meeting up", "Hangouts happen in real life. Meet in public places and look out for yourself."],
-      ["Deleting your account", "You can delete your account at any time under “My profile → Delete account”. Your data is then removed for good."],
-      ["Contact", SUPPORT_EMAIL],
-    ],
-  },
-  privacy: {
-    de: [
-      ["Verantwortlich", `ConnectUni\n${SUPPORT_EMAIL}`],
-      [
-        "Welche Daten",
-        "Deine Hochschul-E-Mail-Adresse (zur Anmeldung, nie öffentlich), Profildaten (Name, Geburtsjahr, Fotos, Hochschule, Haupt- und Nebenfach, Semester, Interessen, Status, Über-mich-Text), Verbindungen, Nachrichten, Hangouts und Gruppen, Meldungen und Blockierungen sowie technische Daten wie IP-Adresse und Gerätetyp beim Betrieb der Server.",
-      ],
-      [
-        "Wofür und auf welcher Grundlage",
-        "Um dir ConnectUni bereitzustellen (Art. 6 Abs. 1 lit. b DSGVO) und für Sicherheit und Moderation (Art. 6 Abs. 1 lit. f DSGVO). Keine Werbung, kein Tracking, kein Verkauf von Daten.",
-      ],
-      [
-        "Wer Daten erhält",
-        "Dein Profil sehen nur verifizierte Studierende deiner Hochschule. Dienstleister verarbeiten Daten in unserem Auftrag: Supabase Inc. (Datenbank, Anmeldung und Fotos; Server in Irland, EU) und IONOS SE (Versand der Anmeldecodes per E-Mail). Supabase hat seinen Sitz in den USA; für Übermittlungen dorthin gelten EU-Standardvertragsklauseln. Titel- und Beispielbilder lädt die App von Unsplash (images.unsplash.com), dabei sieht Unsplash deine IP-Adresse.",
-      ],
-      [
-        "Auf deinem Gerät",
-        "Die App speichert auf deinem Gerät nur, was sie zum Funktionieren braucht: deine Anmeldung und die gewählte Sprache. Keine Analyse- oder Werbe-Cookies.",
-      ],
-      [
-        "Wie lange",
-        "Solange dein Konto besteht. Nach dem Löschen entfernen wir deine Daten innerhalb von 30 Tagen, sofern wir sie nicht gesetzlich länger aufbewahren müssen.",
-      ],
-      [
-        "Deine Rechte",
-        "Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit und Widerspruch (Art. 15–21 DSGVO), jederzeitiger Widerruf von Einwilligungen und Beschwerde bei einer Datenschutz-Aufsichtsbehörde.",
-      ],
-    ],
-    en: [
-      ["Controller", `ConnectUni\n${SUPPORT_EMAIL}`],
-      [
-        "What we process",
-        "Your university email address (for signing in, never public), profile data (name, year of birth, photos, university, major and minor, semester, interests, status, bio), connections, messages, hangouts and groups, reports and blocks, and technical data such as IP address and device type while running the servers.",
-      ],
-      [
-        "Why and on what basis",
-        "To provide ConnectUni (Art. 6(1)(b) GDPR) and for safety and moderation (Art. 6(1)(f) GDPR). No ads, no tracking, no selling of data.",
-      ],
-      [
-        "Who receives data",
-        "Only verified students at your university see your profile. Service providers process data on our behalf: Supabase Inc. (database, sign-in and photos; servers in Ireland, EU) and IONOS SE (sending the sign-in codes by email). Supabase is based in the USA; transfers there are covered by the EU Standard Contractual Clauses. Cover and sample images load from Unsplash (images.unsplash.com), which sees your IP address.",
-      ],
-      [
-        "On your device",
-        "The app only stores what it needs to work on your device: your sign-in and your chosen language. No analytics or advertising cookies.",
-      ],
-      [
-        "How long",
-        "As long as your account exists. After you delete it, we remove your data within 30 days unless the law requires us to keep it longer.",
-      ],
-      [
-        "Your rights",
-        "Access, rectification, erasure, restriction, data portability and objection (Art. 15–21 GDPR), withdrawing consent at any time and complaining to a data protection authority.",
-      ],
-    ],
-  },
-};
 
 const LICENSES = [
   ["React, React DOM, Scheduler", "MIT", "Copyright (c) Meta Platforms, Inc. and affiliates."],
@@ -5880,7 +5785,7 @@ function LegalSheet({ doc, onClose }) {
   const { t, lang } = useI18n();
   return (
     <Sheet onClose={onClose} title={t(`legal_${doc}`)} z="z-[56]">
-      <div className="px-5 pb-6 pt-1 text-sm leading-relaxed text-zinc-600">
+      <div className={cx("px-5 pb-6 pt-1 leading-relaxed text-zinc-600", doc === "imprint" ? "text-xs" : "text-sm")}>
         {doc === "licenses" ? (
           <>
             <ul className="space-y-3">

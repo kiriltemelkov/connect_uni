@@ -104,6 +104,18 @@ The iOS 26.3.1 simulator runtime draws emoji as "?" boxes, which is an Apple bug
 - **Gestures:** a chat follows your finger when you swipe it away from the left edge; pull down in the chat list or in a
   chat to reload.
 
+## Website (privacy policy, support, imprint)
+
+Apple needs a public privacy policy URL and support URL, and German law needs an imprint on the web. The texts live in
+one place, [`src/legal.js`](src/legal.js), which the app and the website both use. `node website/build.mjs` writes the
+pages (imprint, privacy, terms, support, home; German with an English version at `#en`) into [`docs/`](docs). Run it after
+every change to `legal.js`.
+
+To publish, either upload the **contents** of `docs/` to the web root of connect-uni.de at IONOS (webspace → file
+manager or SFTP), so that `https://connect-uni.de/datenschutz/` and `/support/` work, or serve `docs/` with GitHub Pages
+(Settings → Pages → branch `main`, folder `/docs`, custom domain `connect-uni.de`, plus the DNS records GitHub shows at
+IONOS). The imprint page is `noindex`, so search engines skip it; it is still linked in every page's footer.
+
 ## Using the component elsewhere
 
 `ConnectUni.jsx` only needs React 18+, Tailwind CSS (v3.4+ or v4) and `lucide-react`. It injects its own
@@ -112,11 +124,10 @@ via `@fontsource-variable/plus-jakarta-sans` in `src/main.jsx`, so nothing loads
 
 ## Before release
 
-- Legal texts (`LEGAL` in `ConnectUni.jsx`) are drafts: fill in name and address where it says [Vorname
-  Nachname] and have them reviewed. They name Supabase (servers in Ireland, EU), IONOS and Unsplash as
+- Legal texts (`src/legal.js`) are drafts with the real provider details; have them reviewed by a lawyer. They name Supabase (servers in Ireland, EU), IONOS and Unsplash as
   processors; sign the data processing agreements with Supabase and IONOS. The contact address is
   `SUPPORT_EMAIL` (support@connect-uni.de).
-- The App Store needs the privacy policy and a support page on the web (`store/app-store.md`).
+- The App Store needs the privacy policy and support pages on the web: `node website/build.mjs`, then publish `docs/` (see Website above).
 - Reports land in the `reports` table (Supabase → Table Editor). The terms promise a review within 24 hours. To
   remove someone, run `select public.ban_user('their@uni.de');` in the SQL Editor: it deletes their profile, messages
   and hangouts and stops the email from signing in again. It returns their account ID; delete the folder with that
