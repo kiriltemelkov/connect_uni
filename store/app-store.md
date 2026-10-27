@@ -138,8 +138,10 @@ ConnectUni is only for students: sign-up requires a university email address and
 The test account belongs to a separate test university with other test students, so you can try everything: wave back at Mia ("Wave back"), chat, join hangouts ("Hangouts" tab) and accept the study group invite ("Circles" tab).
 
 - Report and block: open any profile and tap "Report" or "Block" at the bottom; in a chat, tap the flag icon.
+- Filter: our server replaces offensive words in messages, names, hangouts and groups with ***.
+- We review reports within 24 hours, remove the content and ban the account that posted it.
 - Delete account: tap the university badge at the top left, then "Delete account".
-- Terms (zero tolerance for objectionable content) and privacy policy: in the same menu under "Legal & help", and linked on the sign-up screen.
+- Terms (zero tolerance for objectionable content) and privacy policy: in the same menu under "Legal & help". New users must accept the terms with a checkbox on the sign-up screen.
 ```
 
 Vor jeder Einreichung: `supabase/review-accounts.sql` noch einmal ausführen (neue Hangouts). Hat Apple das

@@ -39,6 +39,8 @@ import {
  * ConnectUni: photo-first campus friend finder. Bilingual (DE / EN), all data mocked.
  * ──────────────────────────────────────────────────────────────────────────── */
 
+const SUPPORT_EMAIL = "support@connect-uni.de";
+
 const STRINGS = {
   en: {
     close: "Close",
@@ -312,8 +314,8 @@ const STRINGS = {
     deleteConfirm: "Delete account for good",
     cancel: "Cancel",
     accountDeleted: "Your account and all your data have been deleted.",
-    consentA: "By tapping “Send code” you accept the ",
-    consentB: " and the ",
+    consentA: "I accept the ",
+    consentB: " and have read the ",
     consentC: ".",
     haveAccount: "Already on ConnectUni? Log in",
     backToSignup: "New here? Sign up",
@@ -328,6 +330,7 @@ const STRINGS = {
     pickBirthYear: "Pick your year of birth first (step 2).",
     checking: "Checking…",
     errCodeSend: "Couldn't send the code. Check the address or try again in a minute.",
+    accountBanned: `This account has been blocked for breaking the community rules. Questions: ${SUPPORT_EMAIL}`,
     errUniMismatch: "This address doesn't match the university you picked.",
     noProfileYet: "There's no profile for this address yet. Sign up first.",
     errGeneric: "Something went wrong. Please try again.",
@@ -618,9 +621,9 @@ const STRINGS = {
     deleteConfirm: "Konto endgültig löschen",
     cancel: "Abbrechen",
     accountDeleted: "Dein Konto und alle deine Daten wurden gelöscht.",
-    consentA: "Mit „Code senden“ akzeptierst du die ",
-    consentB: " und die ",
-    consentC: ".",
+    consentA: "Ich akzeptiere die ",
+    consentB: " und habe die ",
+    consentC: " gelesen.",
     haveAccount: "Schon dabei? Einloggen",
     backToSignup: "Neu hier? Registrieren",
     loginTitle: "Mit deiner Uni-Mail einloggen",
@@ -634,6 +637,7 @@ const STRINGS = {
     pickBirthYear: "Wähl zuerst dein Geburtsjahr (Schritt 2).",
     checking: "Wird geprüft…",
     errCodeSend: "Code konnte nicht gesendet werden. Prüf die Adresse oder versuch's gleich nochmal.",
+    accountBanned: `Dieses Konto wurde wegen Verstößen gegen die Community-Regeln gesperrt. Fragen an ${SUPPORT_EMAIL}`,
     errUniMismatch: "Diese Adresse passt nicht zur gewählten Hochschule.",
     noProfileYet: "Zu dieser Adresse gibt es noch kein Profil. Registrier dich zuerst.",
     errGeneric: "Da ist etwas schiefgelaufen. Versuch's bitte nochmal.",
@@ -1906,6 +1910,8 @@ function checkAcademicEmail(email) {
 
 // Test accounts for the App Store review (supabase/review-accounts.sql) log in with a password, not a code.
 const isReviewAddress = (email) => /@connect-uni\.de$/i.test(email.trim());
+// Accounts removed with ban_user (supabase/migrations/20261027130000_moderation.sql) can't sign in again.
+const isBanned = (error) => error?.code === "user_banned" || /banned/i.test(error?.message ?? "");
 
 const nameFromEmail = (local) =>
   local
@@ -2676,6 +2682,7 @@ function Onboarding({ onDone, notice, backend }) {
   const [minor, setMinor] = useState(null);
   const [semester, setSemester] = useState(1);
   const [birthYear, setBirthYear] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [local, setLocal] = useState("");
   const [domain, setDomain] = useState(null);
   const [fullEmail, setFullEmail] = useState("");
@@ -2759,9 +2766,9 @@ function Onboarding({ onDone, notice, backend }) {
       else await new Promise((resolve) => later(resolve, 900));
       setSentTo(address);
       setPhase("code");
-    } catch {
+    } catch (error) {
       setPhase("email");
-      setSendError("errCodeSend");
+      setSendError(isBanned(error) ? "accountBanned" : "errCodeSend");
     }
   };
   const askPassword = () => {
@@ -2835,8 +2842,8 @@ function Onboarding({ onDone, notice, backend }) {
     let session;
     try {
       session = await backend.verifyCode(sentTo, code);
-    } catch {
-      return fail("codeWrong");
+    } catch (error) {
+      return fail(isBanned(error) ? "accountBanned" : "codeWrong");
     }
     enter(session);
   };
@@ -2847,8 +2854,8 @@ function Onboarding({ onDone, notice, backend }) {
     let session;
     try {
       session = await backend.signInWithPassword(sentTo, password);
-    } catch {
-      return fail("passwordWrong");
+    } catch (error) {
+      return fail(isBanned(error) ? "accountBanned" : "passwordWrong");
     }
     enter(session);
   };
@@ -2939,10 +2946,32 @@ function Onboarding({ onDone, notice, backend }) {
           !fullAddress && <p className={MUTED}>{t("emailAltHint")}</p>
         )}
       </div>
+      {!login && (
+        <label className={cx("mt-3 flex items-start gap-2.5 text-xs leading-relaxed", MUTED)}>
+          <input
+            id="uc-consent"
+            type="checkbox"
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+            className="size-5 shrink-0 accent-[#ff3d7f]"
+          />
+          <span>
+            {t("consentA")}
+            <button type="button" onClick={() => setLegalDoc("terms")} className={cx("font-semibold text-zinc-700 underline", FOCUS)}>
+              {t("legal_terms")}
+            </button>
+            {t("consentB")}
+            <button type="button" onClick={() => setLegalDoc("privacy")} className={cx("font-semibold text-zinc-700 underline", FOCUS)}>
+              {t("legal_privacy")}
+            </button>
+            {t("consentC")}
+          </span>
+        </label>
+      )}
       <button
         type="button"
         onClick={reviewLogin ? askPassword : sendCode}
-        disabled={!check.ok || phase !== "email" || needsYear}
+        disabled={!check.ok || phase !== "email" || needsYear || (!login && !agreed)}
         className={cx(btn.grad, btn.lg, "mt-3 w-full")}
       >
         {phase === "sending" ? (
@@ -2960,19 +2989,6 @@ function Onboarding({ onDone, notice, backend }) {
       </button>
       {needsYear && check.ok && <p className="mt-2 text-center text-sm font-medium text-rose-600">{t("pickBirthYear")}</p>}
       {sendError && <p className="mt-2 text-center text-sm font-medium text-rose-600">{t(sendError)}</p>}
-      {!login && (
-        <p className={cx("mt-3 text-center text-xs leading-relaxed", MUTED)}>
-          {t("consentA")}
-          <button type="button" onClick={() => setLegalDoc("terms")} className={cx("font-semibold text-zinc-700 underline", FOCUS)}>
-            {t("legal_terms")}
-          </button>
-          {t("consentB")}
-          <button type="button" onClick={() => setLegalDoc("privacy")} className={cx("font-semibold text-zinc-700 underline", FOCUS)}>
-            {t("legal_privacy")}
-          </button>
-          {t("consentC")}
-        </p>
-      )}
     </>
   );
 
@@ -5739,7 +5755,6 @@ function MeSheet({ onClose }) {
  * ──────────────────────────────────────────────────────────────────────────── */
 
 // Drafts with placeholders in [brackets]: fill in your details and have them reviewed before release.
-const SUPPORT_EMAIL = "support@connect-uni.de";
 const REPORT_REASONS = ["fake", "harassment", "inappropriate", "spam", "other"];
 
 const LEGAL = {
@@ -6738,10 +6753,13 @@ function LiveApp({ profile, backend, onLogout, onDeleteAccount }) {
       created_at: new Date().toISOString(),
     };
     setDb((d) => ({ ...d, messages: [row, ...d.messages] }));
-    backend.sendMessage({ id: row.id, conversation_id: threadId, sender_id: uid, body: text }).catch((error) => {
-      setDb((d) => ({ ...d, messages: d.messages.filter((m) => m.id !== row.id) }));
-      fail(error);
-    });
+    backend
+      .sendMessage({ id: row.id, conversation_id: threadId, sender_id: uid, body: text })
+      .then((saved) => setDb((d) => ({ ...d, messages: d.messages.map((m) => (m.id === saved.id ? saved : m)) })))
+      .catch((error) => {
+        setDb((d) => ({ ...d, messages: d.messages.filter((m) => m.id !== row.id) }));
+        fail(error);
+      });
   };
 
   const joinHangout = (id, rect) => {

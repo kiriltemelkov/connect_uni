@@ -115,7 +115,8 @@ export const backend = {
   report: async (me, id, reason, note) =>
     must(await supabase.from("reports").insert({ reporter_id: me, reported_id: id, reason, note: note || null })),
   startDm: async (other) => must(await supabase.rpc("start_dm", { other })),
-  sendMessage: async (row) => must(await supabase.from("messages").insert(row)),
+  // Returns the message as saved: the server replaces offensive words with *** (supabase/migrations/20261027130000_moderation.sql).
+  sendMessage: async (row) => must(await supabase.from("messages").insert(row).select().single()),
   markRead: async (conversation, me) =>
     must(
       await supabase

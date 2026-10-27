@@ -41,6 +41,8 @@ decides what each student can read and write.
 - **Existing database:** if the initial migration is already installed, run the later migrations once:
   `supabase/migrations/20261026120000_hangout_duration.sql` adds hangout durations. New installs get
   that change from the initial migration.
+- **Moderation (App Store guideline 1.2):** run `supabase/migrations/20261027130000_moderation.sql` once: it replaces
+  insults and slurs with `***` in messages, names, hangouts and groups, and adds bans (`ban_user`, below).
 - **Push notifications:** run `supabase/migrations/20261027120000_push.sql` once (it stores one token per phone). Then,
   once, the sending side:
   1. developer.apple.com → Certificates, Identifiers & Profiles → Keys → "+" → name it, tick **Apple Push Notifications
@@ -76,8 +78,11 @@ npm run ios      # builds the web app, copies it into ios/ and opens Xcode
 
 In Xcode, pick a simulator or your iPhone and press Run. On your own iPhone a free Apple account (Personal
 Team) works for 7 days per install; TestFlight and the App Store need the paid Apple Developer Program.
-The bundle ID is `de.connectuni.app`; it can't be changed once the app exists in App Store Connect. The app is
-iPhone-only for now, so the App Store needs no iPad screenshots.
+The App Store bundle ID is `de.connectuni.app`; it can't be changed once the app exists in App Store Connect.
+While only the free Personal Team is available, the Xcode project uses `de.connectuni.app.dev`, so the real ID
+doesn't get tied to the Personal Team. Set it back to `de.connectuni.app` (target App → Signing & Capabilities)
+together with the paid team before the first archive. The app is iPhone-only for now, so the App Store needs no
+iPad screenshots.
 
 After adding a Capacitor plugin, clean the build (Xcode: Product → Clean Build Folder, or `xcodebuild` with a fresh
 `-derivedDataPath`) before archiving. Otherwise Xcode can reuse the old package graph and leave the new plugin out of
@@ -112,6 +117,9 @@ via `@fontsource-variable/plus-jakarta-sans` in `src/main.jsx`, so nothing loads
   processors; sign the data processing agreements with Supabase and IONOS. The contact address is
   `SUPPORT_EMAIL` (support@connect-uni.de).
 - The App Store needs the privacy policy and a support page on the web (`store/app-store.md`).
-- Reports land in the `reports` table (Supabase → Table Editor). The terms promise a review within 24 hours.
+- Reports land in the `reports` table (Supabase → Table Editor). The terms promise a review within 24 hours. To
+  remove someone, run `select public.ban_user('their@uni.de');` in the SQL Editor: it deletes their profile, messages
+  and hangouts and stops the email from signing in again. It returns their account ID; delete the folder with that
+  name under Storage → avatars yourself.
 
 The previous minimal design is kept in [`backup/UniConnect.minimal.jsx`](backup/UniConnect.minimal.jsx).
