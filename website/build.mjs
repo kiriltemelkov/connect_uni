@@ -226,4 +226,6 @@ for (const p of pages) {
   writeFileSync(join(dir, "index.html"), page(p));
 }
 writeFileSync(join(OUT, ".nojekyll"), "");
+// GitHub Pages serves the site under this domain (repo egegeg363/connectuni-website).
+writeFileSync(join(OUT, "CNAME"), "connect-uni.de\n");
 console.log(`Wrote ${pages.length} pages to docs/ for ${SITE}`);
